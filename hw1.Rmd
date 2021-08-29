@@ -1,0 +1,236 @@
+---
+title: "R Notebook"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+## **Principles of Data Visualization and Introduction to ggplot2**
+
+I have provided you with data about the 5,000 fastest growing companies in the US, as compiled by Inc. magazine. lets read this in:
+
+```{r}
+inc <- read.csv("https://raw.githubusercontent.com/charleyferrari/CUNY_DATA_608/master/module1/Data/inc5000_data.csv", header= TRUE)
+```
+
+And lets preview this data:
+
+```{r}
+head(inc)
+```
+```{r}
+summary(inc)
+```
+
+Think a bit on what these summaries mean. Use the space below to add some more relevant non-visual exploratory information you think helps you understand this data:
+
+### **Environmental**
+```{r, message=FALSE}
+library( dplyr )
+library( kableExtra )
+library( ggplot2 )
+library(forcats)
+library( scales )
+```
+
+```{r}
+# Insert your code here, create more chunks as necessary
+# I find it helpful use dplyr's glimpse() function to view a dataframe
+glimpse( inc )
+```
+`glimpse` organizes the dataframe in a more succinct way than the `head` function and, in combination with the statistical output of the `summary` function hints at several ways that we might explore the data further:
+
+1. Select a Categorical variable to group by and view the summary of other features
+2. Select a Numeric variable to rank other features
+
+### **Aggregating by Categorical variables:** 
+
+**State-Level Data**
+The following code will group data features by State, although a similar analysis can be performed by city
+```{r}
+#Geographic grouping (State) & summarize several features
+inc_state <- inc %>%
+  group_by( State ) %>%
+  summarise( num_companies = n(), 
+             num_city = n_distinct( City ), 
+             mean_Rev = mean( Revenue ), 
+             mean_Growth = mean( Growth_Rate ),
+             mean_Rank = mean( Rank ),
+             mean_Size = mean( Employees, na.rm=TRUE ),
+             num_Industry = n_distinct( Industry ) )
+```
+
+A full view of state level data sorted in descending order by the number of companies:
+```{r}
+inc_state %>% 
+  arrange( desc( num_companies ) ) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+
+The above table organizes State level data summaries by the number of top 5000 ranked companies (`num_companies`). Predictably, we see that the larger states (California, CA; Texas, TX; New York, NY) have more companies that made the ranked listing compared to smaller states (e.g. West Virginia, WV; Wyoming, WY). Additionally, we can see that states with more ranked companies also have more represented industries (`num_Industry`); this can be interpreted as a measure of a state's economic diversity.  
+
+The table above is very dense with information. We can subset the aggregated data to pull out details of interest. For example, the following table organizes the top 10 states by Growth Rate
+```{r}
+#sort by a feature to rearrange the data
+inc_state %>% 
+  select( State, mean_Growth ) %>%
+  arrange( desc( mean_Growth ) ) %>%
+  top_n(10) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+**Industry-Level Data**
+`Industry` is another interesting categorical variable organize the data by.
+The following lists the unique Industry categories:
+```{r}
+unique( inc$Industry )
+```
+Here, the data is aggregated by `Industry` and several summary metrics are tabulated
+```{r}
+#Aggregating by Industry & summarize several features
+inc_industry <- inc %>%
+  group_by( Industry ) %>%
+  summarise( num_companies = n(), 
+             num_city = n_distinct( City ), 
+             mean_Rev = mean( Revenue ), 
+             mean_Growth = mean( Growth_Rate ),
+             mean_Rank = mean( Rank ),
+             mean_Size = mean( Employees, na.rm=TRUE ),
+             num_State = n_distinct( State ) )
+#A full view of industry level data sorted in descending order by the number of companies:
+inc_industry %>% 
+  arrange( desc( num_companies ) ) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+
+This organized view of `Industry` listed in descending order of `num_companies` informs on what industries have a dominate presence the ranking of fastest growing companies. However, we can draw subsets from the aggregate to highlight details of the dataset. The following ranks the top 10 `Industry` by meam Growth Rate (`mean_growth`)
+
+```{r}
+inc_industry %>% 
+  select( Industry, mean_Growth ) %>%
+  arrange( desc( mean_Growth ) ) %>%
+  top_n(10) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+### **Ranking the data by Numeric variables:** 
+
+Aggregating the data by categorical features provides some informative summaries of the data. However, we may also be interested in drawing information based on one of the numeric features. For example, the following code will rank the 10 top companies by highest Growth Rate:
+
+```{r}
+inc %>%
+  arrange( Rank ) %>%
+  top_n( 10, Growth_Rate ) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+
+This view organizes the top 10 companies ranked by `Revenue`
+```{r}
+inc %>%
+  arrange( Rank ) %>%
+  top_n( 10, Revenue ) %>%
+  kbl() %>%
+  kable_classic(bootstrap_options = "striped",full_width = F)
+```
+
+It is interesting that none of the top 10 in `Growth_Rate` are present in the top 10 companies listed by `Revenue`.
+Out of curiosity, let's investigate to see how many of the top 100 `Growth_Rate` companies rank in the top 500 of `Revenue`:
+```{r}
+num = 500
+top_GR <- inc %>%
+  arrange( Rank ) %>%
+  top_n( num, Growth_Rate ) %>%
+  select( Name )
+
+top_Rev <- inc %>%
+  arrange( Rank ) %>%
+  top_n( num, Revenue ) %>%
+  select( Name )
+
+both <- intersect( top_GR, top_Rev )
+per_both <- nrow( both )/num*100
+paste0( 'Only ', per_both, '% of the top ', num, ' Growth Rate ranked companies feature among the top 100 in Revenue (on the list)' )
+```
+That on `r per_both`% intersect in the two orderings of the data is an interesting outcome.
+
+
+
+## Question 1
+
+Create a graph that shows the distribution of companies in the dataset by State (ie how many are in each state). There are a lot of States, so consider which axis you should use. This visualization is ultimately going to be consumed on a 'portrait' oriented screen (ie taller than wide), which should further guide your layout choices.
+
+```{r fig, fig.height = 8, fig.width = 6, fig.align = "center"}
+# Answer Question 1 here
+inc %>%
+  group_by( State ) %>%
+  count() %>%
+  ggplot( aes( x= reorder(State,n), y= n ) ) +
+  geom_col( ) +
+  coord_flip() +
+  labs(
+    title = 'Number of top 5000 companies by State',
+    x = 'State',
+    y = '# Companies'
+  ) +
+  theme_linedraw()
+
+```
+
+## Quesiton 2
+
+Lets dig in on the state with the 3rd most companies in the data set. Imagine you work for the state and are interested in how many people are employed by companies in different industries. Create a plot that shows the average and/or median employment by industry for companies in this state (only use cases with full data, use R's `complete.cases()` function.) In addition to this, your graph should show how variable the ranges are, and you should deal with outliers.
+
+
+From visual inspection of the figure above, we see that the state with the 3rd most companies in the data set if New York (NY). 
+```{r message=FALSE, warning=FALSE, fig2, fig.height = 6, fig.width = 8, fig.align = "center"}
+# Answer Question 2 here
+backtrans <- function(y){log10(mean(10 ^ y)) }
+inc %>%
+  filter( State == 'NY' ) %>%
+  filter( complete.cases(.) ) %>%
+  select( Industry, Employees ) %>%
+  mutate( Industry = as_factor( Industry ) ) %>%
+  mutate(zRT = scale(Employees)) %>% 
+  filter(between(zRT,-2.5,+2.5)) %>%
+  ggplot( aes(x = reorder( Industry, Employees, FUN = median ), y = Employees ) ) +
+  geom_boxplot( alpha= 0.7, outlier.shape = NA ) +
+  stat_summary(fun.y = backtrans, geom = "point", aes(group=1), colour = "red") +
+  scale_y_log10() +
+  coord_flip() +
+  labs(
+    title = 'Employment by Industry for New York State',
+    subtitle = 'descending order by median, mean given in red',
+    x = 'Industry',
+    y = 'Employees'
+  ) +
+  theme_linedraw()
+```
+
+## Question 3
+
+Now imagine you work for an investor and want to see which industries generate the most revenue per employee. Create a chart that makes this information clear. Once again, the distribution per industry should be shown.
+
+```{r message=FALSE, warning=FALSE, fig3, fig.height = 6, fig.width = 8, fig.align = "center"}
+# Answer Question 3 here
+inc %>%
+  filter( complete.cases(.) ) %>%
+  mutate( rev_per_emp = Revenue/Employees ) %>%
+  ggplot( aes(x = reorder( Industry, rev_per_emp, FUN = median ), y = rev_per_emp )) +
+  geom_boxplot( alpha= 0.7, outlier.shape = NA ) +
+  stat_summary(fun.y = backtrans, geom = "point", aes(group=1), colour = "red") +
+  scale_y_log10( labels = trans_format("log10", math_format(10^.x)) ) +
+  coord_flip() +
+  labs(
+    title = 'Revenue per Employee by Industry',
+    subtitle = 'descending order by Industry median, mean given in red',
+    x = 'Industry',
+    y = 'Revenue per Employee'
+  ) +
+  theme_linedraw() 
+```
+
+
+<br><br>
