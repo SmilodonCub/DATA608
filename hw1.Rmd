@@ -24,12 +24,12 @@ summary(inc)
 
 Think a bit on what these summaries mean. Use the space below to add some more relevant non-visual exploratory information you think helps you understand this data:
 
-### **Environmental**
+**Environmental Dependancies**
 ```{r, message=FALSE}
 library( dplyr )
 library( kableExtra )
 library( ggplot2 )
-library(forcats)
+library( forcats )
 library( scales )
 ```
 
@@ -38,7 +38,7 @@ library( scales )
 # I find it helpful use dplyr's glimpse() function to view a dataframe
 glimpse( inc )
 ```
-`glimpse` organizes the dataframe in a more succinct way than the `head` function and, in combination with the statistical output of the `summary` function hints at several ways that we might explore the data further:
+`glimpse` organizes the dataframe in a more succinct way than the `head` function and, in combination with the statistical output of the `summary` function hints at several ways that we might explore the data further to understand it further:
 
 1. Select a Categorical variable to group by and view the summary of other features
 2. Select a Numeric variable to rank other features
@@ -70,7 +70,7 @@ inc_state %>%
 
 The above table organizes State level data summaries by the number of top 5000 ranked companies (`num_companies`). Predictably, we see that the larger states (California, CA; Texas, TX; New York, NY) have more companies that made the ranked listing compared to smaller states (e.g. West Virginia, WV; Wyoming, WY). Additionally, we can see that states with more ranked companies also have more represented industries (`num_Industry`); this can be interpreted as a measure of a state's economic diversity.  
 
-The table above is very dense with information. We can subset the aggregated data to pull out details of interest. For example, the following table organizes the top 10 states by Growth Rate
+The table above is very dense with information. We can subset the aggregated data to pull out details of interest. For example, the following table organizes the top 10 states by mean Growth Rate
 ```{r}
 #sort by a feature to rearrange the data
 inc_state %>% 
@@ -105,7 +105,7 @@ inc_industry %>%
   kable_classic(bootstrap_options = "striped",full_width = F)
 ```
 
-This organized view of `Industry` listed in descending order of `num_companies` informs on what industries have a dominate presence the ranking of fastest growing companies. However, we can draw subsets from the aggregate to highlight details of the dataset. The following ranks the top 10 `Industry` by meam Growth Rate (`mean_growth`)
+This organized view of `Industry` listed in descending order of `num_companies` informs on what industries have a dominate presence in the ranking of fastest growing companies. However, we can draw subsets from the aggregate to highlight details of the dataset. The following ranks the top 10 `Industry` by mean Growth Rate (`mean_growth`)
 
 ```{r}
 inc_industry %>% 
@@ -154,7 +154,7 @@ both <- intersect( top_GR, top_Rev )
 per_both <- nrow( both )/num*100
 paste0( 'Only ', per_both, '% of the top ', num, ' Growth Rate ranked companies feature among the top 100 in Revenue (on the list)' )
 ```
-That on `r per_both`% intersect in the two orderings of the data is an interesting outcome.
+That only `r per_both`% intersect in the two orderings of the data is an interesting outcome.
 
 
 
@@ -163,10 +163,11 @@ That on `r per_both`% intersect in the two orderings of the data is an interesti
 Create a graph that shows the distribution of companies in the dataset by State (ie how many are in each state). There are a lot of States, so consider which axis you should use. This visualization is ultimately going to be consumed on a 'portrait' oriented screen (ie taller than wide), which should further guide your layout choices.
 
 ```{r fig, fig.height = 8, fig.width = 6, fig.align = "center"}
+y_lines = c( 200, 400, 600 )
 # Answer Question 1 here
 inc %>%
-  group_by( State ) %>%
-  count() %>%
+  group_by( State ) %>% #aggregate by state
+  count() %>% #count the number of records for each state
   ggplot( aes( x= reorder(State,n), y= n ) ) +
   geom_col( ) +
   coord_flip() +
@@ -174,8 +175,9 @@ inc %>%
     title = 'Number of top 5000 companies by State',
     x = 'State',
     y = '# Companies'
-  ) +
-  theme_linedraw()
+  ) + 
+  theme_classic() +
+  geom_hline(yintercept=y_lines, color="white", size=1)
 
 ```
 
@@ -189,12 +191,12 @@ From visual inspection of the figure above, we see that the state with the 3rd m
 # Answer Question 2 here
 backtrans <- function(y){log10(mean(10 ^ y)) }
 inc %>%
-  filter( State == 'NY' ) %>%
-  filter( complete.cases(.) ) %>%
-  select( Industry, Employees ) %>%
-  mutate( Industry = as_factor( Industry ) ) %>%
+  filter( State == 'NY' ) %>%  #filter records for NY state
+  filter( complete.cases(.) ) %>% #filter only complete cases
+  select( Industry, Employees ) %>% #select the features Industry & Employees
+  mutate( Industry = as_factor( Industry ) ) %>% #recast Idustry as a factor
   mutate(zRT = scale(Employees)) %>% 
-  filter(between(zRT,-2.5,+2.5)) %>%
+  filter(between(zRT,-2.5,+2.5)) %>% #filter outliers based on Z-score
   ggplot( aes(x = reorder( Industry, Employees, FUN = median ), y = Employees ) ) +
   geom_boxplot( alpha= 0.7, outlier.shape = NA ) +
   stat_summary(fun.y = backtrans, geom = "point", aes(group=1), colour = "red") +
@@ -216,8 +218,8 @@ Now imagine you work for an investor and want to see which industries generate t
 ```{r message=FALSE, warning=FALSE, fig3, fig.height = 6, fig.width = 8, fig.align = "center"}
 # Answer Question 3 here
 inc %>%
-  filter( complete.cases(.) ) %>%
-  mutate( rev_per_emp = Revenue/Employees ) %>%
+  filter( complete.cases(.) ) %>% #filter incomplete cases
+  mutate( rev_per_emp = Revenue/Employees ) %>% #create a new feature that quantifies revenue per employee
   ggplot( aes(x = reorder( Industry, rev_per_emp, FUN = median ), y = rev_per_emp )) +
   geom_boxplot( alpha= 0.7, outlier.shape = NA ) +
   stat_summary(fun.y = backtrans, geom = "point", aes(group=1), colour = "red") +
