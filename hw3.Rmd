@@ -15,6 +15,9 @@ library(choroplethr)
 library(choroplethrMaps)
 library(usdata)
 library(gridExtra)
+library(ggthemes)
+library(packcircles)
+library(treemap)
 ```
 
 
@@ -38,10 +41,6 @@ df_2010 <- df %>%
 
 dim( df_2010 )
 head( df_2010 )
-```
-
-```{r}
-df_2010 %>% filter( State == 'AK' )
 ```
 
 
@@ -84,19 +83,48 @@ plt2 <- state_choropleth(df = map_data,
 plt2
 ```
 
+```{r}
+#packcircles
+packing <- circleProgressiveLayout(map_data$Crude.Rate, sizetype='area')
+map_data <- cbind(map_data, packing)
+dat.gg <- circleLayoutVertices(packing, npoints=50)
+# Make the plot
+ggplot() + 
+  # Make the bubbles
+  geom_polygon(data = dat.gg, aes(x, y, group = id, fill=as.factor(id)), colour = "black", alpha = 0.6) +
+  # Add text in the center of each bubble + control its size
+  geom_text(data = map_data, aes(x, y, size=Crude.Rate, label = State)) +
+  scale_size_continuous(range = c(1,4)) +
+  # General theme:
+  theme_void() + 
+  theme(legend.position="none") +
+  coord_equal()
+```
+I'm not crazy about the circle plot.  let's try another....
+
+```{r}
+treemap(map_data,
+            index="State",
+            vSize="Crude.Rate",
+            type="index"
+            )
+```
+
+
 
 ```{r}
 ui <- fluidPage(
   headerPanel('Mortality Rate Explorer'),
+  theme = shinythemes::shinytheme( 'superhero' ),
   sidebarPanel(
-    selectInput('icd', 'ICD.Chapter', unique(df_2010$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
-    #selectInput('state', 'State', unique(df_2010$State), selected='AL'),
-    #selectInput('tier', 'Crude.Rate', unique(df_2010$Crude.Rate), selected='High')
+    selectInput('icd', 'International Classification of Disease', unique(df_2010$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
   ),
-  mainPanel(
-    plotOutput('plot1'),
-    verbatimTextOutput('stats')
-  )
+  mainPanel( 
+    tabsetPanel(
+      tabPanel( 'Map View', plotOutput('plot1'), verbatimTextOutput('stats')),
+      tabPanel( 'Ranked View', plotOutput('plot2')),
+      tabPanel( 'Treemap View', plotOutput('plot3'))
+  ))
 )
 
 server <- shinyServer(function(input, output, session) {
@@ -114,14 +142,11 @@ server <- shinyServer(function(input, output, session) {
       filter(ICD.Chapter == input$icd)
     
     state_choropleth(df = selectedData(),
-                 #title = colnames(map_data)[2], 
                  num_colors = 7) + 
       theme(legend.position=c(.9, .23)) +
-      #scale_fill_brewer(palette="YlOrBr") +
-      labs(title = 'Certain infectious and parasitic diseases',
-           subtitle = "2010 US Census",
-           caption = "source: https://en.wikipedia.org/wiki/List_of_U.S._states_by_Hispanic_and_Latino_population",
-           fill = "Crude Mortality Rate")
+      labs(title = input$icd,
+           fill = "Crude Mortality Rate") + 
+      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'))
   })
   
   output$stats <- renderPrint({
@@ -131,62 +156,151 @@ server <- shinyServer(function(input, output, session) {
     summary(dfSlice$Crude.Rate)
   })
   
+  output$plot2 <- renderPlot({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+    
+    ggplot( selectedData(),
+            aes( x= reorder(State,Crude.Rate), y= Crude.Rate ) ) +
+      geom_col( ) +
+      coord_flip() +
+      labs( 
+        title = 'Ranked Mortality Rate',
+        subtitle = input$icd,
+        y = "Crude Mortality Rate",
+        x = 'State'
+        ) + 
+      theme_tufte(base_size = 14)
+  },
+  width = 500,
+  height = 800) 
+  
+  output$plot3 <- renderPlot({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+    
+treemap(dfSlice,
+            index="State",
+            vSize="Crude.Rate",
+            type="index"
+            ) + 
+      theme_tufte(base_size = 14)
+  },
+  width = 500,
+  height = 800) 
+  
 })
 
 shinyApp(ui = ui, server = server)
 
 ```
+   
+
+
+## Question 2
+Often you are asked whether particular States are improving their mortality rates (per cause) faster than, or slower than, the national average. Create a visualization that lets your clients see this for themselves for one cause of death at the time. Keep in mind that the national average should be weighted by the national population
 
 ```{r}
-df2 <- read.csv('https://raw.githubusercontent.com/charleyferrari/CUNY_DATA608/master/lecture3/Sample%20Code/hpi.csv')
-df2$DATE <- as.POSIXct(strptime(df2$DATE, format = '%m/%d/%y'))
-head( df2 )
+nataves <- df %>%
+  group_by( ICD.Chapter, Year ) %>%
+  summarise( popsum = sum( Population ), deathsum = sum( Deaths ), n = n() ) %>%
+  mutate( nat_crude_death_rate = deathsum/popsum*100000)
+head( nataves )
 ```
+CRUDE DEATH RATE is the total number of deaths to residents in a specified geographic area (country, state, county, etc.) divided by the total population for the same geographic area (for a specified time period, usually a calendar year) and multiplied by 100,000.
+```{r}
+res <- left_join( df, nataves, by = c( "ICD.Chapter", 'Year')) %>%
+  mutate( difference = Crude.Rate - nat_crude_death_rate )
+
+head( res )
+```
+```{r}
+resf <- res %>%
+  filter(ICD.Chapter == "External causes of morbidity and mortality" , 
+         State == 'AL' ) %>%
+  mutate( dif_sign = difference > 0 )
+ggplot( resf ) +
+  geom_line( aes( x = Year, y = nat_crude_death_rate ) ) +
+  geom_line( aes( x = Year, y = Crude.Rate, colour = difference > 0 )) +
+  annotate( 'text', x = 2001, y = resf$nat_crude_death_rate[1] + 5, color = 'black', size = 4, label = c('National Average')) +
+  scale_colour_manual(values = setNames(c('red','blue'),c(T, F))) +
+  ylim( 0, max( resf$Crude.Rate, resf$nat_crude_death_rate, 100 ) ) +
+  theme_classic() +
+  theme(legend.position='none')
+```
+
+
+
+```{r}
+unique( res$ICD.Chapter )
+max( res$nat_crude_death_rate )
+max( res$Crude.Rate, res$nat_crude_death_rate )
+```
+
 
 
 ```{r}
 ui <- fluidPage(
-  headerPanel('Housing Price Explorer'),
+  headerPanel('Mortality Rate Explorer'),
+  theme = shinythemes::shinytheme( 'superhero' ),
   sidebarPanel(
-    selectInput('seas', 'Seasonality', unique(df$Seasonality), selected='SA'),
-    selectInput('metro', 'Metro Area', unique(df$Metro), selected='Atlanta'),
-    selectInput('tier', 'Housing Tier', unique(df$Tier), selected='High')
+    selectInput('icd', 'International Classification of Disease', unique(res$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
+    selectInput('state', 'State', unique(res$State), selected='AL'),
+    selectInput('year', 'Year', unique(res$Year), selected='1999')
   ),
-  mainPanel(
-    plotOutput('plot1'),
-    verbatimTextOutput('stats')
-  )
+  mainPanel( 
+    tabsetPanel(
+      tabPanel( 'Map View', plotOutput('plot1') )
+      #tabPanel( 'Ranked View', plotOutput('plot2')),
+      #tabPanel( 'Treemap View', plotOutput('plot3'))
+  ))
 )
 
 server <- shinyServer(function(input, output, session) {
   
   selectedData <- reactive({
-    dfSlice <- df %>%
-      filter(Seasonality == input$seas, Metro == input$metro)
+    dfSlice <- res %>%
+      filter(ICD.Chapter == input$icd, Year == input$year) %>%
+      mutate( value = difference,
+              region = tolower( abbr2state( State ) ))
   })
   
   output$plot1 <- renderPlot({
     
-    dfSlice <- df %>%
-      filter(Seasonality == input$seas, Metro == input$metro)
+#    dfSlice <- df_2010 %>%
+#      filter(ICD.Chapter == input$icd)
     
-    ggplot(selectedData(), aes(x = DATE, y = HPI, color = Tier)) +
-      geom_line()
+    state_choropleth(df = selectedData(),
+                 num_colors = 7) + 
+      theme(legend.position=c(.9, .23)) +
+      labs(title = input$icd,
+           fill = "Crude Mortality Rate") + 
+      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'))
   })
   
-  output$stats <- renderPrint({
-    dfSliceTier <- selectedData() %>%
-      filter(Tier == input$tier)
-    
-    summary(dfSliceTier$HPI)
-  })
+  
+  # output$plot2 <- renderPlot({
+  #   dfSlice <- selectedData() %>%
+  #     filter(ICD.Chapter == input$icd)
+  #   
+  #   ggplot( selectedData(),
+  #           aes( x= reorder(State,Crude.Rate), y= Crude.Rate ) ) +
+  #     geom_col( ) +
+  #     coord_flip() +
+  #     labs( 
+  #       title = 'Ranked Mortality Rate',
+  #       subtitle = input$icd,
+  #       y = "Crude Mortality Rate",
+  #       x = 'State'
+  #       ) + 
+  #     theme_tufte(base_size = 14)
+  # },
+  # width = 500,
+  # height = 800) 
+  
   
 })
 
 shinyApp(ui = ui, server = server)
 
 ```
-
-
-## Question 2
-Often you are asked whether particular States are improving their mortality rates (per cause) faster than, or slower than, the national average. Create a visualization that lets your clients see this for themselves for one cause of death at the time. Keep in mind that the national average should be weighted by the national population
