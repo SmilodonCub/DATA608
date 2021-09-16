@@ -18,6 +18,8 @@ library(gridExtra)
 library(ggthemes)
 library(packcircles)
 library(treemap)
+library(tidyr)
+library(usmap)
 ```
 
 
@@ -119,7 +121,8 @@ ui <- fluidPage(
   sidebarPanel(
     selectInput('icd', 'International Classification of Disease', unique(df_2010$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
   ),
-  mainPanel( 
+  mainPanel(
+    h4('Compare Mortality Rates from Particular International Classification of Disease across Different States'),
     tabsetPanel(
       tabPanel( 'Map View', plotOutput('plot1'), verbatimTextOutput('stats')),
       tabPanel( 'Ranked View', plotOutput('plot2')),
@@ -217,7 +220,7 @@ head( res )
 ```{r}
 resf <- res %>%
   filter(ICD.Chapter == "External causes of morbidity and mortality" , 
-         State == 'AL' ) %>%
+         State == 'NE' ) %>%
   mutate( dif_sign = difference > 0 )
 ggplot( resf ) +
   geom_line( aes( x = Year, y = nat_crude_death_rate ) ) +
@@ -228,15 +231,26 @@ ggplot( resf ) +
   theme_classic() +
   theme(legend.position='none')
 ```
-
+```{r}
+resf %>%
+  select( Year, Crude.Rate, nat_crude_death_rate) %>%
+  pivot_longer( !Year, names_to = 'group', values_to = 'rate' ) %>%
+  ggplot( aes( x = Year, y= rate, fill = group)) +
+  geom_bar(stat="identity", position=position_dodge()) +
+  theme_tufte()
+```
 
 
 ```{r}
-unique( res$ICD.Chapter )
-max( res$nat_crude_death_rate )
-max( res$Crude.Rate, res$nat_crude_death_rate )
+res %>%
+  filter(ICD.Chapter == "External causes of morbidity and mortality", 
+         Year == 2010) %>%
+      mutate( value = difference,
+              region = tolower( abbr2state( State ) ),
+              fips = fips( State ) ) %>%
+  select( Year, Crude.Rate, nat_crude_death_rate) %>%
+  pivot_longer( !Year, names_to = 'group', values_to = 'rate' )
 ```
-
 
 
 ```{r}
@@ -249,9 +263,14 @@ ui <- fluidPage(
     selectInput('year', 'Year', unique(res$Year), selected='1999')
   ),
   mainPanel( 
+    h4('Compare State-Level Crude Mortality Rates to the National Rates'),
+    h6('Bar Chart per State'),
+    p("From the drop-down menu to the left, chose a International Classification of Disease and State of interest to observe how a given state's mortality rate compares to the national average across all years for which data is present" ),
+    h6('Map View per Year'),
+    p("From the drop-down menu to the left, chose a International Classification of Disease and Year of interest to observe the state-level deviation of mortality rate from the national average for a given year" ),
     tabsetPanel(
-      tabPanel( 'Map View', plotOutput('plot1') )
-      #tabPanel( 'Ranked View', plotOutput('plot2')),
+      tabPanel( 'Bar Chart per State', plotOutput('plot1')),
+      tabPanel( 'Map View per Year', plotOutput('plot2'))
       #tabPanel( 'Treemap View', plotOutput('plot3'))
   ))
 )
@@ -260,43 +279,53 @@ server <- shinyServer(function(input, output, session) {
   
   selectedData <- reactive({
     dfSlice <- res %>%
-      filter(ICD.Chapter == input$icd, Year == input$year) %>%
+      filter(ICD.Chapter == input$icd) %>%
       mutate( value = difference,
-              region = tolower( abbr2state( State ) ))
+              region = tolower( abbr2state( State ) ),
+              fips = fips( State ) )
   })
   
-  output$plot1 <- renderPlot({
-    
-#    dfSlice <- df_2010 %>%
-#      filter(ICD.Chapter == input$icd)
-    
-    state_choropleth(df = selectedData(),
-                 num_colors = 7) + 
+  output$plot2 <- renderPlot({
+    orange <- "#BB0404"
+    blue <- "#0013D3"
+    map_dat <- selectedData() %>% filter( Year == input$year )
+    plot_usmap(data = map_dat, values = "difference",  color = orange, labels=FALSE) + 
+      scale_fill_gradient2( low = blue, mid = "white", high = orange, 
+                             name = "Difference", label = scales::comma ) + 
+      theme(legend.position = "right") + 
+      theme(panel.background = element_rect(colour = "black")) + 
       theme(legend.position=c(.9, .23)) +
       labs(title = input$icd,
-           fill = "Crude Mortality Rate") + 
-      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'))
+           subtitle = "Mortality Rate Difference: National - State",
+           fill = "Crude Mortality Rate") +       
+      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'),
+            plot.subtitle = element_text(hjust = 0.5, size = 16, family = 'serif')) #+
+      #theme_classic()
   })
   
   
-  # output$plot2 <- renderPlot({
-  #   dfSlice <- selectedData() %>%
-  #     filter(ICD.Chapter == input$icd)
-  #   
-  #   ggplot( selectedData(),
-  #           aes( x= reorder(State,Crude.Rate), y= Crude.Rate ) ) +
-  #     geom_col( ) +
-  #     coord_flip() +
-  #     labs( 
-  #       title = 'Ranked Mortality Rate',
-  #       subtitle = input$icd,
-  #       y = "Crude Mortality Rate",
-  #       x = 'State'
-  #       ) + 
-  #     theme_tufte(base_size = 14)
-  # },
-  # width = 500,
-  # height = 800) 
+  output$plot1 <- renderPlot({
+    dfSlice <- selectedData() %>%
+      filter( State == input$state ) %>%
+      select( Year, Crude.Rate, nat_crude_death_rate) %>%
+      pivot_longer( !Year, names_to = 'group', values_to = 'rate' )
+    
+    ggplot(dfSlice, aes( x = Year, y= rate, fill = group)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      labs(
+        title = paste0( input$state, ': ', input$icd  ),
+        subtitle = "State-level vs National Crude Mortality",
+        y = "Mortality Rate",
+        x = 'Year'
+      ) +
+      theme_classic() +
+      scale_fill_discrete(labels = c( input$state,'National Average' )) +
+      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'),
+            plot.subtitle = element_text(hjust = 0.5, size = 16, family = 'serif'))  +
+      guides(fill=guide_legend(title=""))
+  },
+  width = 500,
+  height = 600)
   
   
 })
