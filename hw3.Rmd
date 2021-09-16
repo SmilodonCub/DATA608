@@ -1,0 +1,192 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+
+
+
+
+```{r message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(shiny)
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(gridExtra)
+```
+
+
+```{r}
+url = 'https://raw.githubusercontent.com/charleyferrari/CUNY_DATA_608/master/module3/data/cleaned-cdc-mortality-1999-2010-2.csv'
+df <- read.csv(url)
+dim( df )
+head( df )
+glimpse( df )
+```
+
+## Question 1:
+As a researcher, you frequently compare mortality rates from particular causes across different States. You need a visualization that will let you see (for 2010 only) the crude mortality rate, across all States, from one cause (for example, Neoplasms, which are effectively cancers). Create a visualization that allows you to rank States by the crude mortality of each cause of death.  
+
+```{r}
+# preparing the data
+
+# filter for 2010
+df_2010 <- df %>%
+  filter( Year == 2010 )
+
+dim( df_2010 )
+head( df_2010 )
+```
+
+```{r}
+df_2010 %>% filter( State == 'AK' )
+```
+
+
+```{r}
+# create an example plot
+df_2010_exp <- df_2010 %>% 
+  filter( ICD.Chapter == 'Certain infectious and parasitic diseases' ) 
+
+#bar plot
+y_lines = c( 20, 40, 60 )
+plt1 <- df_2010_exp %>%
+  ggplot( aes( x= reorder(State,Crude.Rate), y= Crude.Rate ) ) +
+  geom_col( ) +
+  coord_flip() +
+  # labs(
+  #   title = 'Number of top 5000 companies by State',
+  #   x = 'State',
+  #   y = '# Companies'
+  # ) + 
+  theme_classic() +
+  geom_hline(yintercept=y_lines, color="white", size=1)
+plt1
+
+#choropleth
+map_data <- df_2010_exp
+map_data$value = map_data[, 6]
+map_data$region = tolower( abbr2state( df_2010_exp$State ) )
+    
+plt2 <- state_choropleth(df = map_data,
+                 title = colnames(map_data)[2], 
+                 num_colors = 7) + 
+  theme(legend.position=c(.9, .23)) +
+  #scale_fill_brewer(palette="YlOrBr") +
+  labs(title = 'Certain infectious and parasitic diseases',
+       subtitle = "2010 US Census",
+       caption = "source: https://en.wikipedia.org/wiki/List_of_U.S._states_by_Hispanic_and_Latino_population",
+       fill = "Crude Mortality Rate") 
+
+#grid.arrange( plt1, plt2, ncol = 2, widths = c(1,2) )
+plt2
+```
+
+
+```{r}
+ui <- fluidPage(
+  headerPanel('Mortality Rate Explorer'),
+  sidebarPanel(
+    selectInput('icd', 'ICD.Chapter', unique(df_2010$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
+    #selectInput('state', 'State', unique(df_2010$State), selected='AL'),
+    #selectInput('tier', 'Crude.Rate', unique(df_2010$Crude.Rate), selected='High')
+  ),
+  mainPanel(
+    plotOutput('plot1'),
+    verbatimTextOutput('stats')
+  )
+)
+
+server <- shinyServer(function(input, output, session) {
+  
+  selectedData <- reactive({
+    dfSlice <- df_2010 %>%
+      filter(ICD.Chapter == input$icd) %>%
+      mutate( value = Crude.Rate,
+              region = tolower( abbr2state( State ) ))
+  })
+  
+  output$plot1 <- renderPlot({
+    
+    dfSlice <- df_2010 %>%
+      filter(ICD.Chapter == input$icd)
+    
+    state_choropleth(df = selectedData(),
+                 #title = colnames(map_data)[2], 
+                 num_colors = 7) + 
+      theme(legend.position=c(.9, .23)) +
+      #scale_fill_brewer(palette="YlOrBr") +
+      labs(title = 'Certain infectious and parasitic diseases',
+           subtitle = "2010 US Census",
+           caption = "source: https://en.wikipedia.org/wiki/List_of_U.S._states_by_Hispanic_and_Latino_population",
+           fill = "Crude Mortality Rate")
+  })
+  
+  output$stats <- renderPrint({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+
+    summary(dfSlice$Crude.Rate)
+  })
+  
+})
+
+shinyApp(ui = ui, server = server)
+
+```
+
+```{r}
+df2 <- read.csv('https://raw.githubusercontent.com/charleyferrari/CUNY_DATA608/master/lecture3/Sample%20Code/hpi.csv')
+df2$DATE <- as.POSIXct(strptime(df2$DATE, format = '%m/%d/%y'))
+head( df2 )
+```
+
+
+```{r}
+ui <- fluidPage(
+  headerPanel('Housing Price Explorer'),
+  sidebarPanel(
+    selectInput('seas', 'Seasonality', unique(df$Seasonality), selected='SA'),
+    selectInput('metro', 'Metro Area', unique(df$Metro), selected='Atlanta'),
+    selectInput('tier', 'Housing Tier', unique(df$Tier), selected='High')
+  ),
+  mainPanel(
+    plotOutput('plot1'),
+    verbatimTextOutput('stats')
+  )
+)
+
+server <- shinyServer(function(input, output, session) {
+  
+  selectedData <- reactive({
+    dfSlice <- df %>%
+      filter(Seasonality == input$seas, Metro == input$metro)
+  })
+  
+  output$plot1 <- renderPlot({
+    
+    dfSlice <- df %>%
+      filter(Seasonality == input$seas, Metro == input$metro)
+    
+    ggplot(selectedData(), aes(x = DATE, y = HPI, color = Tier)) +
+      geom_line()
+  })
+  
+  output$stats <- renderPrint({
+    dfSliceTier <- selectedData() %>%
+      filter(Tier == input$tier)
+    
+    summary(dfSliceTier$HPI)
+  })
+  
+})
+
+shinyApp(ui = ui, server = server)
+
+```
+
+
+## Question 2
+Often you are asked whether particular States are improving their mortality rates (per cause) faster than, or slower than, the national average. Create a visualization that lets your clients see this for themselves for one cause of death at the time. Keep in mind that the national average should be weighted by the national population
