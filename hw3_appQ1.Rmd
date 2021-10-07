@@ -1,0 +1,103 @@
+
+```{r echo=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+library(shiny)
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(gridExtra)
+library(ggthemes)
+library(packcircles)
+library(treemap)
+library(tidyr)
+library(usmap)
+
+url = 'https://raw.githubusercontent.com/charleyferrari/CUNY_DATA_608/master/module3/data/cleaned-cdc-mortality-1999-2010-2.csv'
+df <- read.csv(url)
+
+# filter for 2010
+df_2010 <- df %>%
+  filter( Year == 2010 )
+
+ui <- fluidPage(
+  headerPanel('Mortality Rate Explorer'),
+  theme = shinythemes::shinytheme( 'superhero' ),
+  sidebarPanel(
+    selectInput('icd', 'International Classification of Disease', unique(df_2010$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
+  ),
+  mainPanel(
+    h4('Compare Mortality Rates for an International Classification of Disease (ICD) across Different States'),
+    tabsetPanel(
+      tabPanel( 'Map View', plotOutput('plot1'), verbatimTextOutput('stats')),
+      tabPanel( 'Ranked View', plotOutput('plot2')),
+      tabPanel( 'Treemap View', plotOutput('plot3'))
+    ))
+)
+
+server <- shinyServer(function(input, output, session) {
+  
+  selectedData <- reactive({
+    dfSlice <- df_2010 %>%
+      filter(ICD.Chapter == input$icd) %>%
+      mutate( value = Crude.Rate,
+              region = tolower( abbr2state( State ) ))
+  })
+  
+  output$plot1 <- renderPlot({
+    
+    dfSlice <- df_2010 %>%
+      filter(ICD.Chapter == input$icd)
+    
+    state_choropleth(df = selectedData(),
+                     num_colors = 7) + 
+      theme(legend.position=c(.9, .23)) +
+      labs(title = input$icd,
+           fill = "Crude Mortality Rate") + 
+      theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'))
+  })
+  
+  output$stats <- renderPrint({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+    
+    summary(dfSlice$Crude.Rate)
+  })
+  
+  output$plot2 <- renderPlot({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+    
+    ggplot( selectedData(),
+            aes( x= reorder(State,Crude.Rate), y= Crude.Rate ) ) +
+      geom_col( ) +
+      coord_flip() +
+      labs( 
+        title = 'Ranked Mortality Rate',
+        subtitle = input$icd,
+        y = "Crude Mortality Rate",
+        x = 'State'
+      ) + 
+      theme_tufte(base_size = 14)
+  },
+  width = 500,
+  height = 800) 
+  
+  output$plot3 <- renderPlot({
+    dfSlice <- selectedData() %>%
+      filter(ICD.Chapter == input$icd)
+    
+    treemap(dfSlice,
+            index="State",
+            vSize="Crude.Rate",
+            type="index"
+    ) + 
+      theme_tufte(base_size = 14)
+  },
+  width = 500,
+  height = 800) 
+  
+})
+
+shinyApp(ui = ui, server = server)
+```
