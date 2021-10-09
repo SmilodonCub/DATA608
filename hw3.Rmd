@@ -256,26 +256,56 @@ res %>%
 ```{r}
 ui <- fluidPage(
   headerPanel('Mortality Rate Explorer'),
+  h4('Compare State-Level Crude Mortality Rates to the National Rates for a given International Classification of Disease (ICD)'),
   theme = shinythemes::shinytheme( 'superhero' ),
   sidebarPanel(
-    selectInput('icd', 'International Classification of Disease', unique(res$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
+    tags$head(tags$style("#text1{color: white;
+                             font-size: 20px;
+                         font-style: bold;
+                         }"
+                     )
+    ),
+    tags$head(tags$style("#text1b{color: white;
+                             font-size: 18px;
+                         }"
+                     )
+    ),
+    tags$head(tags$style("#text2{color: white;
+                             font-size: 20px;
+                         font-style: bold;
+                         }"
+    )),
+    tags$head(tags$style("#text2b{color: white;
+                             font-size: 18px;
+                         }"
+                     )),    
+    selectInput('icd', '(ICD)', unique(res$ICD.Chapter), selected='Certain infectious and parasitic diseases'),
     selectInput('state', 'State', unique(res$State), selected='AL'),
     selectInput('year', 'Year', unique(res$Year), selected='1999')
   ),
   mainPanel( 
-    h4('Compare State-Level Crude Mortality Rates to the National Rates'),
-    h6('Bar Chart per State'),
-    p("From the drop-down menu to the left, chose a International Classification of Disease and State of interest to observe how a given state's mortality rate compares to the national average across all years for which data is present" ),
-    h6('Map View per Year'),
-    p("From the drop-down menu to the left, chose a International Classification of Disease and Year of interest to observe the state-level deviation of mortality rate from the national average for a given year" ),
     tabsetPanel(
-      tabPanel( 'Bar Chart per State', plotOutput('plot1')),
-      tabPanel( 'Map View per Year', plotOutput('plot2'))
-      #tabPanel( 'Treemap View', plotOutput('plot3'))
+      tabPanel( 'Bar Chart per State', textOutput("text1"), textOutput("text1b") , plotOutput('plot1')),
+      tabPanel( 'Map View per Year', textOutput("text2"), textOutput("text2b"), plotOutput('plot2'))
   ))
 )
 
 server <- shinyServer(function(input, output, session) {
+  output$text1 <- renderText({
+    "Chose a ICD and State:"
+  })
+  
+  output$text1b <- renderText({
+    "observe how a given state's mortality rate compares to the national average across all years for which data is present"
+  })
+
+  output$text2 <- renderText({
+    "Chose a ICD and Year:"
+  })
+  
+  output$text2b <- renderText({
+    "Observe the state-level deviation of mortality rate from the national average for a given year"
+  })
   
   selectedData <- reactive({
     dfSlice <- res %>%
@@ -323,9 +353,7 @@ server <- shinyServer(function(input, output, session) {
       theme(plot.title = element_text(hjust = 0.5, size = 18, family = 'serif'),
             plot.subtitle = element_text(hjust = 0.5, size = 16, family = 'serif'))  +
       guides(fill=guide_legend(title=""))
-  },
-  width = 500,
-  height = 600)
+  })
   
   
 })
