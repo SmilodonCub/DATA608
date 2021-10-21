@@ -153,15 +153,28 @@ map_certain_trees( dfff )
 health_dictionary ={'Poor' : 1, 'Fair' : 2, 'Good' : 3}
 color_dictionary ={'Poor' : 'gold', 'Fair' : 'greenyellow', 'Good' : 'forestgreen'}
 boro_health_counts = find_boro_health_counts( dfff, color_dictionary, health_dictionary )
-fig = draw_boro_dial( boro_health_counts, 'Queens' )
+fig_man = draw_boro_dial( boro_health_counts, 'Manhattan' )
+fig_bkln = draw_boro_dial( boro_health_counts, 'Brooklyn' )
+fig_qns = draw_boro_dial( boro_health_counts, 'Queens' )
+fig_brnx = draw_boro_dial( boro_health_counts, 'Bronx' )
+fig_si = draw_boro_dial( boro_health_counts, 'Staten Island' )
 
 
 
 app.layout = html.Div([
     html.Div(
-        html.Img(src=app.get_asset_url('nyctree1.png'), style={'height':'60%', 'width':'60%'}), style={'textAlign': 'center'}
+        html.Img(src=app.get_asset_url('nyctree1.png'), style={'height':'40%', 'width':'40%'}), style={'textAlign': 'center'}
         ),
     html.H1('Tree Health NYC'),
+    
+    
+    html.Div([
+            dcc.Dropdown(
+                id='tree_species',
+                options=[{'label': i, 'value': i} for i in available_species],
+                value='crepe myrtle'
+            )
+        ], style={'width': '25%', 'display': 'inline-block'}),
     
 
     html.Div([
@@ -169,19 +182,19 @@ app.layout = html.Div([
         html.Div([
             dcc.Graph(
                 id='graph1',
-                figure=fig
+                figure=fig_man
             )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 20'}),
         
         html.Div([
             dcc.Graph(
                 id='graph2',
-                figure=fig
+                figure=fig_bkln
             )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 20'}),
         
         html.Div([
             dcc.Graph(
                 id='graph3',
-                figure=fig
+                figure=fig_qns
             )], style={'width': '32%', 'display': 'inline-block'}),
         
     ], className='row'),        
@@ -191,13 +204,13 @@ app.layout = html.Div([
         html.Div([
             dcc.Graph(
                 id='graph4',
-                figure=fig
+                figure=fig_brnx
             )], style={'width': '32%', 'display': 'inline-block', 'margin-left' : '300px'}),
         
         html.Div([
             dcc.Graph(
                 id='graph5',
-                figure=fig
+                figure=fig_si
             )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 0'}),
                            
     ], className='row'),
@@ -205,38 +218,37 @@ app.layout = html.Div([
                      
     html.Div([
         # map plot. zoom in to see tree health in a certain location
-
-        html.Div([
-            dcc.Dropdown(
-                id='tree_species',
-                options=[{'label': i, 'value': i} for i in available_species],
-                value='crepe myrtle'
-            )
-        ], style={'width': '25%', 'display': 'inline-block'}),
-
-        html.Div([
-            dcc.Dropdown(
-                id='tree_health',
-                options=[{'label': i, 'value': i} for i in available_health],
-                value='Tree Health'
-            )
-        ], style={'width': '25%', 'float': 'right', 'display': 'inline-block'})
-    ]),
     
     html.Iframe( id = 'map', srcDoc = open('nycmap.html', 'r').read(), width = '100%', height='600')
+    ])
 
 ])
     
     
 @app.callback(
     Output('map', 'srcDoc'),
+    Output('graph1', 'figure'),  
+    Output('graph2', 'figure'),
+    Output('graph3', 'figure'),
+    Output('graph4', 'figure'),
+    Output('graph5', 'figure'),
     Input('tree_species', 'value'))
 
 def update_graph(value):
     
     dff = df[df['spc_common'] == value]
     map_certain_trees( dff )
-    return open( 'nycmap.html', 'r').read()
+    health_dictionary ={'Poor' : 1, 'Fair' : 2, 'Good' : 3}
+    color_dictionary ={'Poor' : 'gold', 'Fair' : 'greenyellow', 'Good' : 'forestgreen'}
+    boro_health_counts = find_boro_health_counts( dff, color_dictionary, health_dictionary )
+    fig_man = draw_boro_dial( boro_health_counts, 'Manhattan' )
+    fig_bkln = draw_boro_dial( boro_health_counts, 'Brooklyn' )
+    fig_qns = draw_boro_dial( boro_health_counts, 'Queens' )
+    fig_brnx = draw_boro_dial( boro_health_counts, 'Bronx' )
+    fig_si = draw_boro_dial( boro_health_counts, 'Staten Island' )
+    return open( 'nycmap.html', 'r').read(), fig_man, fig_bkln, fig_qns, fig_brnx, fig_si
+
+    
 
 
 if __name__ == '__main__':
