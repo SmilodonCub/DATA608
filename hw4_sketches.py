@@ -44,6 +44,7 @@ print( tree_dat_4Qs.head() )
 # needle direction (helper for draw_boro_dial)
 def needle_dir( boro_prop ):
     num_rows = boro_prop.shape[0]
+    ticks = []
     if num_rows == 3:
         ranges = [ [0, boro_prop[0]], 
              [boro_prop[0], boro_prop[0] + boro_prop[1]],
@@ -55,9 +56,11 @@ def needle_dir( boro_prop ):
         ranges = [ [0, boro_prop[0]]]
     maxidx = boro_prop.idxmax()
     needle_dir = sum( ranges[maxidx] )/2
+    tick_placement = [ sum(val)/2 for val in ranges ]
+    tick_labels = [ str( round( val[1]-val[0],1 ))+'%' for val in ranges ]
     needle_dir = needle_dir*180/100 #rescale from 0-100 to 0-180
     needle_dir = 180-needle_dir #flip axis direction
-    return needle_dir, maxidx
+    return needle_dir, maxidx, tick_placement, tick_labels
 
 # functionaliza boro_health_counts
 def find_boro_health_counts( df_species, color_dictionary, health_dictionary ):
@@ -75,6 +78,7 @@ def find_boro_health_counts( df_species, color_dictionary, health_dictionary ):
 # dial plots to indicate tree health in each borough
 def draw_boro_dial( boro_health_counts, boro ):
     boro_health_counts = boro_health_counts[ boro_health_counts['boroname'] == boro ].reset_index()
+    boro_nd, maxidx, ticks, labels = needle_dir( boro_health_counts['percent'] )
     num_ranks = boro_health_counts.shape[0]
     colors = boro_health_counts['color_health']
     if num_ranks == 3:
@@ -99,7 +103,9 @@ def draw_boro_dial( boro_health_counts, boro ):
     domain = {'x': [0, 1], 'y': [0, 1]},
     title = {'text': boro, 'font': {'size': 36}},     
     gauge = {
-        'axis': {'range': [None, 100], 'tickwidth': 3, 'tickcolor': "gray", 'tickfont': { 'size':20}},
+        'axis': {'range': [None, 100], 'tickwidth': 3, 'tickcolor': "gray", 
+                 'tickfont': { 'size':15}, 'tickvals': ticks, 'ticktext': labels,
+                 'tickangle': 0},
         'bgcolor': "white",
         'borderwidth': 4,
         'bordercolor': "gray",
@@ -111,8 +117,6 @@ def draw_boro_dial( boro_health_counts, boro ):
                       yaxis={'showgrid': False, 'range':[0,1], 'showticklabels':False},
                       plot_bgcolor='rgba(0,0,0,0)')
 
-    boro_percent = boro_health_counts['percent']
-    boro_nd, maxidx = needle_dir( boro_percent )
     theta = boro_nd
     r= 0.6
     x_head = r * np.cos(np.radians(theta))
@@ -145,10 +149,10 @@ def map_certain_trees( df_species ):
 
 app = dash.Dash(__name__)
 
-df = tree_dat_4Qs
-dfff = tree_dat_4Qs[ tree_dat_4Qs[ 'spc_common' ] == 'crepe myrtle' ]
-available_species = tree_dat_4Qs['spc_common'].unique()
-available_health = tree_dat_4Qs['health'].unique()
+df = tree_dat_4Qs.dropna()
+dfff = tree_dat_4Qs[ tree_dat_4Qs[ 'spc_common' ] == 'crimson king maple' ]
+available_species = np.sort( df['spc_common'].unique() ) 
+available_health = df['health'].unique()
 map_certain_trees( dfff )
 health_dictionary ={'Poor' : 1, 'Fair' : 2, 'Good' : 3}
 color_dictionary ={'Poor' : 'gold', 'Fair' : 'greenyellow', 'Good' : 'forestgreen'}
@@ -163,7 +167,9 @@ fig_si = draw_boro_dial( boro_health_counts, 'Staten Island' )
 
 app.layout = html.Div([
     html.Div(
-        html.Img(src=app.get_asset_url('nyctree1.png'), style={'height':'40%', 'width':'40%'}), style={'textAlign': 'center'}
+        html.Img(src=app.get_asset_url('nyctree1.png'), 
+                 style={'height':'40%', 'width':'40%'}), 
+        style={'textAlign': 'center'}
         ),
     html.H1('Tree Health NYC'),
     
@@ -172,57 +178,66 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id='tree_species',
                 options=[{'label': i, 'value': i} for i in available_species],
-                value='crepe myrtle'
+                value='crimson king maple'
             )
         ], style={'width': '25%', 'display': 'inline-block'}),
     
-
-    html.Div([
-        # row for static boro dial plots
-        html.Div([
-            dcc.Graph(
-                id='graph1',
-                figure=fig_man
-            )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 20'}),
-        
-        html.Div([
-            dcc.Graph(
-                id='graph2',
-                figure=fig_bkln
-            )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 20'}),
-        
-        html.Div([
-            dcc.Graph(
-                id='graph3',
-                figure=fig_qns
-            )], style={'width': '32%', 'display': 'inline-block'}),
-        
-    ], className='row'),        
-
-
-    html.Div([        
-        html.Div([
-            dcc.Graph(
-                id='graph4',
-                figure=fig_brnx
-            )], style={'width': '32%', 'display': 'inline-block', 'margin-left' : '300px'}),
-        
-        html.Div([
-            dcc.Graph(
-                id='graph5',
-                figure=fig_si
-            )], style={'width': '32%', 'display': 'inline-block', 'padding': '0 0'}),
-                           
-    ], className='row'),
+    dcc.Tabs([
+        dcc.Tab( label = 'Health Dial', children= [
+            html.Div([
+                # row for static boro dial plots
+                html.Div([
+                    dcc.Graph(
+                        id='graph1',
+                        figure=fig_man
+                        )], 
+                    style={'width': '32%', 'height': '32%' , 
+                           'display': 'inline-block','margin' : '1px 1px 1px 1px'}),
+                
+                html.Div([
+                    dcc.Graph(
+                        id='graph2',
+                        figure=fig_bkln
+                        )], 
+                    style={'width': '32%', 'height': '32%' , 
+                           'display': 'inline-block','margin' : '1px 1px 1px 1px'}),
+                
+                html.Div([
+                    dcc.Graph(
+                        id='graph3',
+                        figure=fig_qns
+                        )], 
+                    style={'width': '32%', 'height': '32%' , 
+                           'display': 'inline-block','margin' : '1px 1px 1px 1px'}),
+                ], className='row'),
+            
+            html.Div([
+                html.Div([
+                    dcc.Graph(
+                        id='graph4',
+                        figure=fig_brnx
+                        )], 
+                    style={'width': '32%', 'display': 'inline-block', 
+                           'margin' : '1px 1px 1px 250px'}),
+            
+                html.Div([
+                    dcc.Graph(
+                        id='graph5',
+                        figure=fig_si
+                        )], 
+                    style={'width': '32%', 'display': 'inline-block',
+                           'margin' : '1px 1px 1px 1px'}),
+                ], className='row')
+            ]),
                      
-                     
-    html.Div([
-        # map plot. zoom in to see tree health in a certain location
-    
-    html.Iframe( id = 'map', srcDoc = open('nycmap.html', 'r').read(), width = '100%', height='600')
+            dcc.Tab( label = 'City View', children = [
+                html.Div([
+                    # map plot. zoom in to see tree health in a certain location
+                    html.Iframe( id = 'map', srcDoc = open('nycmap.html', 'r').read(), width = '100%', height='600')
+                    ])
+                ])
+            ])
     ])
-
-])
     
     
 @app.callback(
