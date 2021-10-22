@@ -11,14 +11,11 @@ Created on Fri Sep 24 21:09:15 2021
 
 import pandas as pd
 import numpy as np
-import missingno as msno
-import json
 import folium
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output
-import plotly.express as px
 import plotly.graph_objects as go
 from folium.plugins import MarkerCluster
 
@@ -29,7 +26,8 @@ from folium.plugins import MarkerCluster
 
 # %% DATA IMPORT
 
-tree_dat = pd.read_csv( 'trees2015.csv' )
+url = 'https://raw.githubusercontent.com/SmilodonCub/DATA608/master/tree_dat_4Qs.csv'
+tree_dat = pd.read_csv( url )
 #tree_dat.info()
 
 cols_4Qs = [ 'spc_common', 'boroname', 'health', 'steward', 'zipcode', 'zip_city', 'borocode', 'latitude', 'longitude' ]
