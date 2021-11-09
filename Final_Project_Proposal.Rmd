@@ -1,0 +1,40 @@
+---
+title: "Data608 Final Project Proposal"
+author: Bonnie Cooper
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Experiment Data Viewer
+I currently work as a postdoc research scientist in a visual neuroscience lab. We investigate the neural guidance of voluntary eye-movements and the allocation of attention. Our experiments generate complex datasets that require merging experimental control timestamps, behavioral eye-movement data, and neural data. I would like to build an applet that would allow a user to explore experimental data gathered across a manageable number of recording sessions.
+A typical experiment involves a subject fixating on a target in the center of the screen and, after a cue, making an eye-movement to a target in the periphery. I would like to build an app that will allow a user to select a certain experimental recording and visualize the following:  
+
+* trial-by-trial
+  * lo-fi reproduction of the experimental display with eye-movement trace & fixation order marked
+  * alignments of eye-movement & spike data for the trial
+* experimental summary
+  * smoothed neural data aligned on stimulus onset & saccade onset
+  * eye-movement data aligned on stimulus onset & saccade onset
+  * summary metrics such as:
+    - peak visual response
+    - peak motor response
+    - cell classification
+
+A 'data viewer' that can visualize this information would be very useful. Especially if I can deploy it on Heroku and send it to my PI as a link. He won't need to worry about his python environment. He won't need to load any data. He can just click through and tell me what I did wrong.
+
+
+## Example Data
+I am still in the process of wrangling the data into one centralized format, so, unfortunately, I do not have a sharable link. However, here is a link to a notebook that shows some examples of similar data and (towards the bottom) example visualizations of aligned behavioral and neural data that I would like to include in my applet .
+[EDA Linear Array](https://github.com/SmilodonCub/linArray/blob/master/linArray_notebook.ipynb)
+
+
+## The Emotional Plea
+This is not a toy project! I really really want to build this to use this in my research. I had a clunky Matlab GUI version of the app I have in mind and it was very useful. however, it worked locally and did so by haphazardly pulling from three different file formats; I never built out a centralized dataframe|database. Why you ask: because I was a self taught coder who had never heard of a dataframe before, plus it 'worked', so why fix it....until now!
+
+<br><br>
